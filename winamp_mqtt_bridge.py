@@ -7,6 +7,7 @@ import os
 import win32gui
 import win32api
 import win32con
+import win32process
 import paho.mqtt.client as mqtt
 
 # --- CONFIG -----------------------------------------------------------------
@@ -19,7 +20,10 @@ MQTT_PASSWORD = "pass"         # or "pass"
 BASE_TOPIC = "winamp"        # will use winamp/state and winamp/cmnd/...
 
 # Where to read the current playlist from. Winamp keeps an updated copy of the
-# active playlist at %APPDATA%\Winamp\Winamp.m3u8 by default.
+# active playlist at %APPDATA%\Winamp\Winamp.m3u8 by default, but some
+# installations (portable installs, legacy versions, custom settings) write the
+# playlist next to winamp.exe or only emit the ANSI Winamp.m3u variant. We try
+# all known locations and pick the most recently modified file.
 PLAYLIST_PATH = os.path.join(os.environ.get("APPDATA", ""), "Winamp", "Winamp.m3u8")
 MAX_PLAYLIST_ITEMS = 500
 
@@ -131,12 +135,62 @@ def set_playlist_position(hwnd, position):
 
 
 def read_playlist_from_disk():
-    """Return a list of playlist entries from the configured playlist file."""
-    if not PLAYLIST_PATH:
+    """Return a list of playlist entries from the newest available playlist file."""
+
+    def candidate_paths():
+        # Caller may override via env var (useful for debugging/testing)
+        override = os.environ.get("WINAMP_PLAYLIST_PATH")
+        if override:
+            yield override
+
+        # Default AppData location (UTF-8)
+        if PLAYLIST_PATH:
+            yield PLAYLIST_PATH
+            yield os.path.splitext(PLAYLIST_PATH)[0] + ".m3u"
+
+        # Portable installs often keep the playlist next to winamp.exe
+        hwnd = find_winamp_hwnd()
+        if hwnd:
+            process = None
+            try:
+                _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                process = win32api.OpenProcess(
+                    win32con.PROCESS_QUERY_INFORMATION | win32con.PROCESS_VM_READ,
+                    False,
+                    pid,
+                )
+                exe_path = win32process.GetModuleFileNameEx(process, 0)
+                winamp_dir = os.path.dirname(exe_path)
+                yield os.path.join(winamp_dir, "Winamp.m3u8")
+                yield os.path.join(winamp_dir, "Winamp.m3u")
+            except Exception:
+                logging.debug("Unable to resolve Winamp executable path", exc_info=True)
+            finally:
+                if process:
+                    win32api.CloseHandle(process)
+
+    def newest_existing_path():
+        newest = None
+        newest_mtime = None
+        for path in candidate_paths():
+            if not path:
+                continue
+            try:
+                mtime = os.path.getmtime(path)
+            except FileNotFoundError:
+                continue
+            if newest is None or mtime > newest_mtime:
+                newest = path
+                newest_mtime = mtime
+        return newest
+
+    playlist_file = newest_existing_path()
+    if not playlist_file:
+        logging.debug("No playlist file found in expected locations")
         return []
 
     try:
-        with open(PLAYLIST_PATH, "r", encoding="utf-8", errors="ignore") as fh:
+        with open(playlist_file, "r", encoding="utf-8", errors="ignore") as fh:
             items = []
             for line in fh:
                 line = line.strip()
@@ -146,12 +200,9 @@ def read_playlist_from_disk():
                 if len(items) >= MAX_PLAYLIST_ITEMS:
                     break
             return items
-    except FileNotFoundError:
-        logging.debug("Playlist file not found: %s", PLAYLIST_PATH)
     except Exception:
-        logging.exception("Could not read playlist from %s", PLAYLIST_PATH)
-
-    return []
+        logging.exception("Could not read playlist from %s", playlist_file)
+        return []
 
 
 class WinampMqttBridge:
