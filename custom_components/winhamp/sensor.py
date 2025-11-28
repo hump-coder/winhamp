@@ -140,7 +140,8 @@ class AvailabilityDebugSensor(BaseDebugSensor):
 
     @callback
     def _handle_availability(self, msg: ReceiveMessage) -> None:
-        self._availability_online = msg.payload.decode().strip().lower() == "online"
+        payload = _payload_to_str(msg.payload)
+        self._availability_online = payload.strip().lower() == "online"
         self._last_message_time = dt_util.utcnow()
         self.async_write_ha_state()
 
@@ -193,7 +194,7 @@ class StateDebugSensor(BaseDebugSensor):
 
     @callback
     def _handle_state(self, msg: ReceiveMessage) -> None:
-        raw = msg.payload.decode()
+        raw = _payload_to_str(msg.payload)
         self._last_payload = raw
         self._last_message_time = dt_util.utcnow()
 
@@ -229,3 +230,9 @@ class StateDebugSensor(BaseDebugSensor):
             self._last_available = None
 
         self.async_write_ha_state()
+
+
+def _payload_to_str(payload: bytes | str) -> str:
+    if isinstance(payload, bytes):
+        return payload.decode()
+    return str(payload)

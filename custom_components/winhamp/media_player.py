@@ -175,7 +175,8 @@ class WinampMqttMediaPlayer(MediaPlayerEntity):
 
     @callback
     def _handle_availability(self, msg: ReceiveMessage) -> None:
-        self._availability_online = msg.payload.decode().strip().lower() == "online"
+        payload = _payload_to_str(msg.payload)
+        self._availability_online = payload.strip().lower() == "online"
         self.async_write_ha_state()
 
     async def async_media_play(self) -> None:
@@ -224,3 +225,9 @@ class WinampMqttMediaPlayer(MediaPlayerEntity):
     async def _publish_command(self, command: str, payload: str | None = None) -> None:
         topic = f"{self._base_topic}/{self._command_topic}/{command}"
         await mqtt.async_publish(self.hass, topic, payload or "")
+
+
+def _payload_to_str(payload: bytes | str) -> str:
+    if isinstance(payload, bytes):
+        return payload.decode()
+    return str(payload)
