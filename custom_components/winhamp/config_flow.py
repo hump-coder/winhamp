@@ -47,7 +47,13 @@ def _build_schema(
 
 
 def _normalize_base_topic(raw: str) -> str:
-    return raw.rstrip("/") or DEFAULT_BASE_TOPIC
+    cleaned = raw.strip().rstrip("/")
+    return cleaned or DEFAULT_BASE_TOPIC
+
+
+def _normalize_segment(raw: str, default: str) -> str:
+    cleaned = raw.strip().strip("/")
+    return cleaned or default
 
 
 class WinampConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -59,6 +65,15 @@ class WinampConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             base_topic = _normalize_base_topic(user_input[CONF_BASE_TOPIC])
             user_input[CONF_BASE_TOPIC] = base_topic
+            user_input[CONF_STATE_TOPIC] = _normalize_segment(
+                user_input[CONF_STATE_TOPIC], DEFAULT_STATE_TOPIC
+            )
+            user_input[CONF_COMMAND_TOPIC] = _normalize_segment(
+                user_input[CONF_COMMAND_TOPIC], DEFAULT_COMMAND_TOPIC
+            )
+            user_input[CONF_AVAILABILITY_TOPIC] = _normalize_segment(
+                user_input[CONF_AVAILABILITY_TOPIC], DEFAULT_AVAILABILITY_TOPIC
+            )
             await self.async_set_unique_id(base_topic)
             self._abort_if_unique_id_configured()
             return self.async_create_entry(title=user_input[CONF_NAME], data=user_input)
@@ -95,6 +110,15 @@ class WinampOptionsFlowHandler(config_entries.OptionsFlow):
         if user_input is not None:
             base_topic = _normalize_base_topic(user_input[CONF_BASE_TOPIC])
             user_input[CONF_BASE_TOPIC] = base_topic
+            user_input[CONF_STATE_TOPIC] = _normalize_segment(
+                user_input[CONF_STATE_TOPIC], DEFAULT_STATE_TOPIC
+            )
+            user_input[CONF_COMMAND_TOPIC] = _normalize_segment(
+                user_input[CONF_COMMAND_TOPIC], DEFAULT_COMMAND_TOPIC
+            )
+            user_input[CONF_AVAILABILITY_TOPIC] = _normalize_segment(
+                user_input[CONF_AVAILABILITY_TOPIC], DEFAULT_AVAILABILITY_TOPIC
+            )
             return self.async_create_entry(title="", data=user_input)
 
         current = self.config_entry.options or self.config_entry.data
