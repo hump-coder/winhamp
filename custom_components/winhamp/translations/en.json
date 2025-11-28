@@ -6,7 +6,11 @@
         "description": "Connect Home Assistant to the Winamp MQTT bridge.",
         "data": {
           "name": "Name",
-          "base_topic": "Base topic (without trailing slash)"
+          "base_topic": "Base topic (without trailing slash)",
+          "state_topic": "State topic segment",
+          "command_topic": "Command topic segment",
+          "availability_topic": "Availability topic segment",
+          "volume_step": "Volume step for up/down (%)"
         }
       }
     }
@@ -15,10 +19,14 @@
     "step": {
       "init": {
         "title": "Winamp MQTT Bridge",
-        "description": "Update the Winamp MQTT connection settings.",
+        "description": "Update the Winamp MQTT connection settings and behaviors.",
         "data": {
           "name": "Name",
-          "base_topic": "Base topic"
+          "base_topic": "Base topic",
+          "state_topic": "State topic segment",
+          "command_topic": "Command topic segment",
+          "availability_topic": "Availability topic segment",
+          "volume_step": "Volume step for up/down (%)"
         }
       }
     }

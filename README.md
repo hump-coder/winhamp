@@ -42,6 +42,8 @@ The `custom_components/winhamp` directory contains a custom integration that cre
 3. Provide the required options:
    - **Name**: Friendly name for the entity (defaults to "Winamp").
    - **Base topic**: The same base topic you set in `winamp_mqtt_bridge.py` (defaults to `winamp`).
+   - **State/command/availability segments**: Override the topic suffixes if your bridge uses something other than the defaults of `state`, `cmnd`, and `availability`.
+   - **Volume step**: How many percent to step the volume when using volume up/down buttons (defaults to 5%).
 4. Submit and wait for the integration to create the media player entity.
 
 ### End-to-end checklist (HACS to working media player)
@@ -58,3 +60,4 @@ The `custom_components/winhamp` directory contains a custom integration that cre
 - Media controls: play/pause/stop, previous/next track, toggle, volume up/down, set volume.
 - Availability tracking using the bridge's availability topic.
 - Device metadata for easy identification in Home Assistant.
+- Fully configurable MQTT topic segments and volume step size through the integration's options flow.
