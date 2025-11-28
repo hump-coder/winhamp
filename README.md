@@ -15,7 +15,12 @@ The `winamp_mqtt_bridge.py` script runs on the Windows machine that hosts Winamp
 1. Open `winamp_mqtt_bridge.py` and adjust the config constants near the top:
    - `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD` to match your broker.
    - `BASE_TOPIC` if you want a topic other than `winamp`.
-2. Install dependencies on the Windows machine (Python, `paho-mqtt`, and `pywin32`).
+   - Be sure `MQTT_HOST` points to your broker's IP/hostname and set the username/password if your broker requires authentication.
+2. Install dependencies on the Windows machine (Python, `paho-mqtt`, and `pywin32`). Run:
+
+   ```bash
+   pip install paho-mqtt pywin32
+   ```
 3. Start the script while Winamp is running. Leave it running so it can publish state and accept commands.
 
 Topics used by the bridge:
