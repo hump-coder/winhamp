@@ -2,26 +2,55 @@
 
 Winamp to Home Assistant bridge.
 
+## Prerequisites
+
+- Home Assistant with the built-in MQTT integration configured and connected to the same broker that Winamp will use.
+- [HACS](https://hacs.xyz/) installed in Home Assistant so you can add a custom repository.
+- A reachable MQTT broker (local IP or host on your network).
+
 ## MQTT bridge
 
-The `winamp_mqtt_bridge.py` script connects to Winamp on Windows and publishes state/commands to MQTT.
+The `winamp_mqtt_bridge.py` script runs on the Windows machine that hosts Winamp. It publishes Winamp state to MQTT and listens for control commands.
 
-- Configure broker credentials at the top of the script.
-- State is published to `<base>/state` as JSON with playback status, title, and volume.
-- Availability is published to `<base>/availability`.
-- Commands are consumed from `<base>/cmnd/*` (play, pause, stop, next, prev, toggle, vol_up, vol_down, volume).
+1. Open `winamp_mqtt_bridge.py` and adjust the config constants near the top:
+   - `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD` to match your broker.
+   - `BASE_TOPIC` if you want a topic other than `winamp`.
+2. Install dependencies on the Windows machine (Python, `paho-mqtt`, and `pywin32`).
+3. Start the script while Winamp is running. Leave it running so it can publish state and accept commands.
+
+Topics used by the bridge:
+
+- State: `<base>/state` (JSON payload with playback status, title, and volume).
+- Availability: `<base>/availability` (online/offline retained message).
+- Commands: `<base>/cmnd/*` (play, pause, stop, next, prev, toggle, vol_up, vol_down, volume).
 
 ## Home Assistant integration (HACS)
 
-A custom integration is included under `custom_components/winhamp` for use with HACS. It creates a full media player entity powered by the MQTT bridge.
+The `custom_components/winhamp` directory contains a custom integration that creates a fully featured media player entity backed by the MQTT bridge.
 
-### Installation
+### Install via HACS (recommended)
 
-1. Copy this repository into your Home Assistant `custom_components` directory or add it as a custom repository in HACS.
-2. Restart Home Assistant to load the integration.
-3. In Home Assistant, add **Winamp MQTT Bridge** via **Settings → Devices & Services → Add Integration** and supply:
-   - **Name**: Friendly name for the entity (default: Winamp).
-   - **Base topic**: The MQTT root topic used by the bridge (default: `winamp`).
+1. In Home Assistant, open **HACS → Integrations** and choose **⋮ → Custom repositories**.
+2. Add this repository URL and choose **Integration** as the category. Save.
+3. Back in **HACS → Integrations**, click **Explore & download repositories**, search for **Winamp MQTT Bridge**, and install it.
+4. Restart Home Assistant to load the new integration.
+
+### Configure the integration in Home Assistant
+
+1. Go to **Settings → Devices & Services → Add Integration**.
+2. Select **Winamp MQTT Bridge**.
+3. Provide the required options:
+   - **Name**: Friendly name for the entity (defaults to "Winamp").
+   - **Base topic**: The same base topic you set in `winamp_mqtt_bridge.py` (defaults to `winamp`).
+4. Submit and wait for the integration to create the media player entity.
+
+### End-to-end checklist (HACS to working media player)
+
+1. **MQTT ready**: MQTT integration in Home Assistant is connected to your broker.
+2. **Bridge configured**: `winamp_mqtt_bridge.py` has the correct broker credentials and base topic, and is running on the Windows/Winamp machine.
+3. **HACS install done**: Repository added as a custom repository, integration installed, and Home Assistant restarted.
+4. **Integration added**: Winamp MQTT Bridge added via **Devices & Services** with the same base topic as the bridge.
+5. **Verify entity**: A media player entity (e.g., `media_player.winamp`) appears and shows the current track/volume. Try play/pause or volume commands from Home Assistant to confirm round-trip control.
 
 ### Features
 
@@ -29,5 +58,3 @@ A custom integration is included under `custom_components/winhamp` for use with 
 - Media controls: play/pause/stop, previous/next track, toggle, volume up/down, set volume.
 - Availability tracking using the bridge's availability topic.
 - Device metadata for easy identification in Home Assistant.
-
-Ensure that Home Assistant's MQTT integration is configured and connected to the same broker as the Winamp bridge.
