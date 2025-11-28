@@ -81,6 +81,8 @@ class WinampMqttMediaPlayer(MediaPlayerEntity):
         self._status: MediaPlayerState | None = None
         self._title: str | None = None
         self._volume: float | None = None
+        self._playlist: list[str] | None = None
+        self._playlist_position: int | None = None
         self._available_flag: bool | None = None
         self._availability_online = False
         self._state_unsub: Callable[[], None] | None = None
@@ -95,6 +97,7 @@ class WinampMqttMediaPlayer(MediaPlayerEntity):
             | MediaPlayerEntityFeature.VOLUME_STEP
             | MediaPlayerEntityFeature.TURN_ON
             | MediaPlayerEntityFeature.TURN_OFF
+            | MediaPlayerEntityFeature.SELECT_SOURCE
         )
 
     async def async_added_to_hass(self) -> None:
@@ -134,6 +137,18 @@ class WinampMqttMediaPlayer(MediaPlayerEntity):
         return self._volume
 
     @property
+    def source_list(self) -> list[str] | None:
+        return self._playlist
+
+    @property
+    def source(self) -> str | None:
+        if self._playlist is None or self._playlist_position is None:
+            return None
+        if 0 <= self._playlist_position < len(self._playlist):
+            return self._playlist[self._playlist_position]
+        return None
+
+    @property
     def device_info(self) -> DeviceInfo:
         return DeviceInfo(
             identifiers={(DOMAIN, self._base_topic)},
@@ -170,6 +185,18 @@ class WinampMqttMediaPlayer(MediaPlayerEntity):
         available_value = payload.get("available")
         if isinstance(available_value, bool):
             self._available_flag = available_value
+
+        playlist = payload.get("playlist")
+        if isinstance(playlist, list):
+            self._playlist = [str(item) for item in playlist]
+        else:
+            self._playlist = None
+
+        position = payload.get("position")
+        if isinstance(position, int):
+            self._playlist_position = position
+        else:
+            self._playlist_position = None
 
         self.async_write_ha_state()
 
@@ -212,6 +239,17 @@ class WinampMqttMediaPlayer(MediaPlayerEntity):
     async def async_set_volume_level(self, volume: float) -> None:
         percent = max(0, min(100, int(volume * 100)))
         await self._publish_command("volume", str(percent))
+
+    async def async_select_source(self, source: str) -> None:
+        if not self._playlist:
+            return
+
+        try:
+            index = self._playlist.index(source)
+        except ValueError:
+            return
+
+        await self._publish_command("play_index", str(index))
 
     async def _publish_volume_delta(self, delta: int) -> None:
         if self._volume is not None:

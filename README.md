@@ -20,9 +20,9 @@ The `winamp_mqtt_bridge.py` script runs on the Windows machine that hosts Winamp
 
 Topics used by the bridge:
 
-- State: `<base>/state` (JSON payload with playback status, title, and volume).
+- State: `<base>/state` (JSON payload with playback status, title, volume, and playlist details).
 - Availability: `<base>/availability` (online/offline retained message).
-- Commands: `<base>/cmnd/*` (play, pause, stop, next, prev, toggle, vol_up, vol_down, volume).
+- Commands: `<base>/cmnd/*` (play, pause, stop, next, prev, toggle, vol_up, vol_down, volume, play_index).
 
 ## Home Assistant integration (HACS)
 
@@ -58,6 +58,7 @@ The `custom_components/winhamp` directory contains a custom integration that cre
 
 - Real-time state updates via MQTT push.
 - Media controls: play/pause/stop, previous/next track, toggle, volume up/down, set volume.
+- Playlist browsing and selection exposed as sources in Home Assistant (reads Winamp.m3u8 from `%APPDATA%\Winamp`).
 - Availability tracking using the bridge's availability topic.
 - Device metadata for easy identification in Home Assistant.
 - Fully configurable MQTT topic segments and volume step size through the integration's options flow.
