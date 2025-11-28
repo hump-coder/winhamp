@@ -2,6 +2,7 @@ import time
 import json
 import logging
 import threading
+import os
 
 import win32gui
 import win32api
@@ -16,6 +17,11 @@ MQTT_USERNAME = "user"         # or "user"
 MQTT_PASSWORD = "pass"         # or "pass"
 
 BASE_TOPIC = "winamp"        # will use winamp/state and winamp/cmnd/...
+
+# Where to read the current playlist from. Winamp keeps an updated copy of the
+# active playlist at %APPDATA%\Winamp\Winamp.m3u8 by default.
+PLAYLIST_PATH = os.path.join(os.environ.get("APPDATA", ""), "Winamp", "Winamp.m3u8")
+MAX_PLAYLIST_ITEMS = 500
 
 POLL_INTERVAL_SEC = 2        # how often to publish state
 
@@ -36,6 +42,9 @@ WA_NEXT  = 40048          # :contentReference[oaicite:2]{index=2}
 # IPC codes
 IPC_ISPLAYING = 104       # 1=playing, 3=paused, 0=stopped :contentReference[oaicite:3]{index=3}
 IPC_SETVOLUME = 122       # 0–255; -666 returns current volume :contentReference[oaicite:4]{index=4}
+IPC_SETPLAYLISTPOS = 121
+IPC_GETLISTLENGTH = 124
+IPC_GETLISTPOS = 125
 
 # ---------------------------------------------------------------------------
 
@@ -104,6 +113,47 @@ def get_title_from_window(hwnd):
     return raw
 
 
+def get_playlist_position(hwnd):
+    """Return the current playlist index or None if unavailable."""
+    res = win32api.SendMessage(hwnd, WM_WA_IPC, 0, IPC_GETLISTPOS)
+    if res < 0:
+        return None
+    return int(res)
+
+
+def set_playlist_position(hwnd, position):
+    """Jump to a playlist index and start playback."""
+    if position is None or position < 0:
+        return False
+    win32api.SendMessage(hwnd, WM_WA_IPC, int(position), IPC_SETPLAYLISTPOS)
+    send_winamp_command(WA_PLAY)
+    return True
+
+
+def read_playlist_from_disk():
+    """Return a list of playlist entries from the configured playlist file."""
+    if not PLAYLIST_PATH:
+        return []
+
+    try:
+        with open(PLAYLIST_PATH, "r", encoding="utf-8", errors="ignore") as fh:
+            items = []
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                items.append(line)
+                if len(items) >= MAX_PLAYLIST_ITEMS:
+                    break
+            return items
+    except FileNotFoundError:
+        logging.debug("Playlist file not found: %s", PLAYLIST_PATH)
+    except Exception:
+        logging.exception("Could not read playlist from %s", PLAYLIST_PATH)
+
+    return []
+
+
 class WinampMqttBridge:
     def __init__(self):
         self.client = mqtt.Client()
@@ -169,6 +219,28 @@ class WinampMqttBridge:
                 set_volume_percent(value)
             except ValueError:
                 logging.warning("Invalid volume payload: %r", payload)
+        elif cmd == "play_index":
+            try:
+                target = int(payload)
+            except ValueError:
+                logging.warning("Invalid play_index payload: %r", payload)
+                return
+
+            hwnd = find_winamp_hwnd()
+            if not hwnd:
+                logging.warning("Cannot jump to playlist entry; Winamp window missing")
+                return
+
+            length = win32api.SendMessage(hwnd, WM_WA_IPC, 0, IPC_GETLISTLENGTH)
+            if length < 0:
+                logging.warning("Winamp playlist length unavailable")
+                return
+
+            if target < 0 or target >= length:
+                logging.warning("Requested playlist index %s out of range (0-%s)", target, length - 1)
+                return
+
+            set_playlist_position(hwnd, target)
 
     def adjust_volume(self, delta):
         hwnd = find_winamp_hwnd()
@@ -191,16 +263,22 @@ class WinampMqttBridge:
                         "status": "off",
                         "title": "",
                         "volume": None,
+                        "playlist": [],
+                        "position": None,
                     }
                 else:
                     status = get_playback_status(hwnd)
                     title = get_title_from_window(hwnd)
                     volume = get_volume_percent(hwnd)
+                    playlist_position = get_playlist_position(hwnd)
+                    playlist_items = read_playlist_from_disk()
                     state = {
                         "available": True,
                         "status": status,   # playing|paused|idle
                         "title": title,
                         "volume": volume,
+                        "playlist": playlist_items,
+                        "position": playlist_position,
                     }
 
                 if state != self.last_state:
