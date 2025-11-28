@@ -4,7 +4,7 @@ import json
 from typing import Callable
 
 from homeassistant.components import mqtt
-from homeassistant.components.mqtt.models import Message
+from homeassistant.components.mqtt.models import ReceiveMessage
 from homeassistant.components.media_player import MediaPlayerEntity, MediaPlayerEntityFeature, MediaPlayerState
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME
@@ -99,7 +99,7 @@ class WinampMqttMediaPlayer(MediaPlayerEntity):
         )
 
     @callback
-    def _handle_state_message(self, msg: Message) -> None:
+    def _handle_state_message(self, msg: ReceiveMessage) -> None:
         try:
             payload = json.loads(msg.payload)
         except json.JSONDecodeError:
@@ -130,7 +130,7 @@ class WinampMqttMediaPlayer(MediaPlayerEntity):
         self.async_write_ha_state()
 
     @callback
-    def _handle_availability(self, msg: Message) -> None:
+    def _handle_availability(self, msg: ReceiveMessage) -> None:
         self._availability_online = msg.payload.decode().strip().lower() == "online"
         self.async_write_ha_state()
 
