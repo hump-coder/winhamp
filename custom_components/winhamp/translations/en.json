@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Winamp MQTT Bridge",
+        "description": "Connect Home Assistant to the Winamp MQTT bridge.",
+        "data": {
+          "name": "Name",
+          "base_topic": "Base topic (without trailing slash)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Winamp MQTT Bridge",
+        "description": "Update the Winamp MQTT connection settings.",
+        "data": {
+          "name": "Name",
+          "base_topic": "Base topic"
+        }
+      }
+    }
+  }
+}
