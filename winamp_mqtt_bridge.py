@@ -49,6 +49,10 @@ IPC_SETVOLUME = 122       # 0–255; -666 returns current volume :contentReferen
 IPC_SETPLAYLISTPOS = 121
 IPC_GETLISTLENGTH = 124
 IPC_GETLISTPOS = 125
+IPC_GETPLAYLISTFILE = 211
+IPC_GETPLAYLISTTITLE = 212
+IPC_GETPLAYLISTFILEW = 213
+IPC_GETPLAYLISTTITLEW = 214
 
 # ---------------------------------------------------------------------------
 
@@ -132,6 +136,88 @@ def set_playlist_position(hwnd, position):
     win32api.SendMessage(hwnd, WM_WA_IPC, int(position), IPC_SETPLAYLISTPOS)
     send_winamp_command(WA_PLAY)
     return True
+
+
+def _read_process_string(process, address, wide=False, max_bytes=4096):
+    """Read a NUL-terminated string from another process' memory."""
+
+    if not address:
+        return None
+
+    buf = b""
+    # Read in chunks until we hit the terminator or the limit
+    while len(buf) < max_bytes:
+        try:
+            chunk = win32process.ReadProcessMemory(
+                process, address + len(buf), 512
+            )
+        except Exception:
+            logging.debug("ReadProcessMemory failed at 0x%x", address, exc_info=True)
+            return None
+
+        if not chunk:
+            break
+
+        buf += chunk
+
+        terminator = b"\x00\x00" if wide else b"\x00"
+        idx = buf.find(terminator)
+        if idx != -1:
+            buf = buf[:idx]
+            break
+
+        if len(buf) >= max_bytes:
+            break
+
+    if wide:
+        terminator = len(buf) // 2 * 2
+        buf = buf[:terminator]
+        try:
+            return buf.decode("utf-16-le")
+        except UnicodeDecodeError:
+            logging.debug("Failed to decode wide playlist string", exc_info=True)
+            return None
+
+    try:
+        return buf.decode("utf-8", errors="replace")
+    except UnicodeDecodeError:
+        return None
+
+
+def read_playlist_from_ipc(hwnd, expected_length=None):
+    """Fetch playlist entries directly from Winamp memory via IPC messages."""
+
+    if expected_length is None:
+        expected_length = win32api.SendMessage(hwnd, WM_WA_IPC, 0, IPC_GETLISTLENGTH)
+    if expected_length is None or expected_length < 0:
+        return []
+
+    try:
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        process = win32api.OpenProcess(
+            win32con.PROCESS_QUERY_INFORMATION | win32con.PROCESS_VM_READ,
+            False,
+            pid,
+        )
+    except Exception:
+        logging.debug("Unable to open Winamp process for playlist read", exc_info=True)
+        return []
+
+    try:
+        items = []
+        for index in range(min(expected_length, MAX_PLAYLIST_ITEMS)):
+            ptr = win32api.SendMessage(hwnd, WM_WA_IPC, index, IPC_GETPLAYLISTFILEW)
+            entry = _read_process_string(process, ptr, wide=True)
+            if not entry:
+                ptr = win32api.SendMessage(hwnd, WM_WA_IPC, index, IPC_GETPLAYLISTFILE)
+                entry = _read_process_string(process, ptr)
+
+            if entry:
+                items.append(entry)
+
+        return items
+    finally:
+        win32api.CloseHandle(process)
 
 
 def read_playlist_from_disk(expected_length=None):
@@ -341,7 +427,9 @@ class WinampMqttBridge:
                     volume = get_volume_percent(hwnd)
                     playlist_position = get_playlist_position(hwnd)
                     playlist_length = win32api.SendMessage(hwnd, WM_WA_IPC, 0, IPC_GETLISTLENGTH)
-                    playlist_items = read_playlist_from_disk(
+                    playlist_items = read_playlist_from_ipc(
+                        hwnd, playlist_length if playlist_length >= 0 else None
+                    ) or read_playlist_from_disk(
                         playlist_length if playlist_length >= 0 else None
                     )
                     state = {
