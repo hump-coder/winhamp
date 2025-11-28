@@ -226,6 +226,15 @@ class WinampMqttBridge:
         self.client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
         self.client.loop_start()
 
+        # Mark the bridge online as soon as MQTT is connected so Home Assistant
+        # can treat the media player as available. The LWT above will flip it
+        # back to "offline" if the connection drops unexpectedly.
+        self.client.publish(
+            BASE_TOPIC + "/availability",
+            "online",
+            retain=True
+        )
+
         # Blocking state loop
         self.publish_state_loop()
 
