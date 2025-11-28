@@ -134,19 +134,38 @@ def set_playlist_position(hwnd, position):
     return True
 
 
-def read_playlist_from_disk():
-    """Return a list of playlist entries from the newest available playlist file."""
+def read_playlist_from_disk(expected_length=None):
+    """Return playlist entries from the best matching playlist file.
 
-    def candidate_paths():
+    Winamp generally writes the active playlist to Winamp.m3u8, but some
+    installs still update Winamp.m3u or keep the file alongside the portable
+    executable. We sort the discovered paths by mtime (newest first) and, when
+    the bridge knows the current playlist length from Winamp IPC, prefer files
+    whose entry count matches that length. This avoids picking unrelated
+    playlists that happen to be newer than the active one.
+    """
+
+    def candidate_paths_with_mtime():
+        seen = set()
+
+        def _yield(path):
+            if not path or path in seen:
+                return
+            seen.add(path)
+            try:
+                yield path, os.path.getmtime(path)
+            except FileNotFoundError:
+                return
+
         # Caller may override via env var (useful for debugging/testing)
         override = os.environ.get("WINAMP_PLAYLIST_PATH")
         if override:
-            yield override
+            yield from _yield(override)
 
         # Default AppData location (UTF-8)
         if PLAYLIST_PATH:
-            yield PLAYLIST_PATH
-            yield os.path.splitext(PLAYLIST_PATH)[0] + ".m3u"
+            yield from _yield(PLAYLIST_PATH)
+            yield from _yield(os.path.splitext(PLAYLIST_PATH)[0] + ".m3u")
 
         # Portable installs often keep the playlist next to winamp.exe
         hwnd = find_winamp_hwnd()
@@ -161,48 +180,47 @@ def read_playlist_from_disk():
                 )
                 exe_path = win32process.GetModuleFileNameEx(process, 0)
                 winamp_dir = os.path.dirname(exe_path)
-                yield os.path.join(winamp_dir, "Winamp.m3u8")
-                yield os.path.join(winamp_dir, "Winamp.m3u")
+                yield from _yield(os.path.join(winamp_dir, "Winamp.m3u8"))
+                yield from _yield(os.path.join(winamp_dir, "Winamp.m3u"))
             except Exception:
                 logging.debug("Unable to resolve Winamp executable path", exc_info=True)
             finally:
                 if process:
                     win32api.CloseHandle(process)
 
-    def newest_existing_path():
-        newest = None
-        newest_mtime = None
-        for path in candidate_paths():
-            if not path:
-                continue
-            try:
-                mtime = os.path.getmtime(path)
-            except FileNotFoundError:
-                continue
-            if newest is None or mtime > newest_mtime:
-                newest = path
-                newest_mtime = mtime
-        return newest
+    def read_playlist(path):
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as fh:
+                items = []
+                for line in fh:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    items.append(line)
+                    if len(items) >= MAX_PLAYLIST_ITEMS:
+                        break
+                return items
+        except Exception:
+            logging.exception("Could not read playlist from %s", path)
+            return None
 
-    playlist_file = newest_existing_path()
-    if not playlist_file:
+    candidates = sorted(candidate_paths_with_mtime(), key=lambda x: x[1], reverse=True)
+    if not candidates:
         logging.debug("No playlist file found in expected locations")
         return []
 
-    try:
-        with open(playlist_file, "r", encoding="utf-8", errors="ignore") as fh:
-            items = []
-            for line in fh:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                items.append(line)
-                if len(items) >= MAX_PLAYLIST_ITEMS:
-                    break
+    fallback = None
+    for path, _ in candidates:
+        items = read_playlist(path)
+        if items is None:
+            continue
+        if fallback is None:
+            fallback = items
+
+        if expected_length is None or len(items) == expected_length:
             return items
-    except Exception:
-        logging.exception("Could not read playlist from %s", playlist_file)
-        return []
+
+    return fallback or []
 
 
 class WinampMqttBridge:
@@ -322,7 +340,10 @@ class WinampMqttBridge:
                     title = get_title_from_window(hwnd)
                     volume = get_volume_percent(hwnd)
                     playlist_position = get_playlist_position(hwnd)
-                    playlist_items = read_playlist_from_disk()
+                    playlist_length = win32api.SendMessage(hwnd, WM_WA_IPC, 0, IPC_GETLISTLENGTH)
+                    playlist_items = read_playlist_from_disk(
+                        playlist_length if playlist_length >= 0 else None
+                    )
                     state = {
                         "available": True,
                         "status": status,   # playing|paused|idle
