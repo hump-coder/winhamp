@@ -1,7 +1,7 @@
 {
   "domain": "winhamp",
   "name": "WinHamp MQTT Bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "documentation": "https://github.com/yourusername/winhamp",
   "requirements": [],
   "dependencies": ["mqtt"],
