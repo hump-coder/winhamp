@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">WinHamp Icon</title>
+  <desc id="desc">Lightning bolt inspired by Winamp over a rounded Home Assistant background.</desc>
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4aa3ff"/>
+      <stop offset="100%" stop-color="#0a5dbb"/>
+    </linearGradient>
+    <linearGradient id="boltGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe27a"/>
+      <stop offset="100%" stop-color="#ff9f1c"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#05315f" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="18" ry="18" fill="url(#bgGradient)"/>
+  <g fill="none" stroke="#cfe5ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="38" cy="46" r="5"/>
+    <circle cx="64" cy="34" r="5"/>
+    <circle cx="90" cy="46" r="5"/>
+    <path d="M38 46 L64 34 L90 46 L90 72 L64 88 L38 72 Z" opacity="0.45"/>
+  </g>
+  <path d="M71 18 L44 70 L63 70 L55 110 L90 56 L68 56 Z" fill="url(#boltGradient)" filter="url(#shadow)" stroke="#f6c000" stroke-width="2"/>
+</svg>
