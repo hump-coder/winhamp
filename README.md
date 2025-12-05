@@ -1,6 +1,6 @@
 # winhamp
 
-![WinHamp logo](custom_components/winhamp/logo.svg)
+![WinHamp logo](custom_components/winhamp/logo.png)
 
 Winamp to Home Assistant bridge.
 
